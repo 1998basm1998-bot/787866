@@ -646,18 +646,146 @@ document.addEventListener('DOMContentLoaded', () => {
                     const typeLabel = isDeposit ? 'إيداع' : 'سحب';
                     const typeColor = isDeposit ? 'var(--secondary-color)' : 'var(--danger-color)';
                     return `
-                        <div class="transaction-card" style="border-right: 4px solid ${typeColor}; padding-right: 15px;">
-                            <div class="transaction-card-info">
+                        <div class="transaction-card" style="border-right: 4px solid ${typeColor}; padding-right: 15px; display: flex; align-items: center; justify-content: space-between;">
+                            <div class="transaction-card-info" style="flex: 1;">
                                 <h4 style="color: ${typeColor}; margin-bottom: 0.5rem;">${typeLabel}</h4>
                                 <p><strong>المبلغ:</strong> <span dir="ltr">${formatter.format(t.amount)}</span> دينار</p>
                                 <p><strong>التاريخ:</strong> ${t.date}</p>
                                 <p><strong>السبب:</strong> ${t.reason}</p>
+                            </div>
+                            <div class="transaction-actions" style="margin-right: 15px; display: flex; flex-direction: column; gap: 5px;">
+                                <button type="button" class="action-btn edit-history-btn" data-id="${t.id}" title="تعديل">✏️</button>
+                                <button type="button" class="action-btn delete-history-btn" data-id="${t.id}" title="حذف">🗑️</button>
                             </div>
                         </div>
                     `;
                 }).reverse().join(''); // Reverse to show latest first
             }
         }
+    }
+
+    if (treasuryHistoryList) {
+        treasuryHistoryList.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-history-btn');
+            const deleteBtn = e.target.closest('.delete-history-btn');
+
+            if (editBtn) {
+                const id = Number(editBtn.getAttribute('data-id'));
+                const transaction = treasuryHistory.find(t => t.id === id);
+                if (transaction) {
+                    const editHistoryModal = document.getElementById('edit-history-modal');
+                    const passwordSection = document.getElementById('history-password-section');
+                    const editSection = document.getElementById('edit-history-section');
+                    const passwordInput = document.getElementById('history-password');
+                    
+                    if (editHistoryModal) {
+                        editHistoryModal.setAttribute('data-current-id', id);
+                        editHistoryModal.style.display = 'flex';
+                        passwordSection.style.display = 'block';
+                        editSection.style.display = 'none';
+                        passwordInput.value = '';
+                    }
+                }
+            } else if (deleteBtn) {
+                const id = Number(deleteBtn.getAttribute('data-id'));
+                const transaction = treasuryHistory.find(t => t.id === id);
+                if (transaction) {
+                    const deleteHistoryModal = document.getElementById('delete-history-modal');
+                    const passwordInput = document.getElementById('delete-history-password');
+                    
+                    if (deleteHistoryModal) {
+                        deleteHistoryModal.setAttribute('data-current-id', id);
+                        deleteHistoryModal.style.display = 'flex';
+                        passwordInput.value = '';
+                    }
+                }
+            }
+        });
+    }
+
+    const editHistoryModal = document.getElementById('edit-history-modal');
+    const closeHistoryModalBtn = document.getElementById('close-history-modal-btn');
+    const verifyHistoryPasswordBtn = document.getElementById('verify-history-password-btn');
+    const saveHistoryBtn = document.getElementById('save-history-btn');
+
+    if (closeHistoryModalBtn) {
+        closeHistoryModalBtn.addEventListener('click', () => {
+            if (editHistoryModal) editHistoryModal.style.display = 'none';
+        });
+    }
+
+    if (verifyHistoryPasswordBtn) {
+        verifyHistoryPasswordBtn.addEventListener('click', () => {
+            const passwordInput = document.getElementById('history-password');
+            if (passwordInput.value === window.getGlobalPassword()) {
+                document.getElementById('history-password-section').style.display = 'none';
+                document.getElementById('edit-history-section').style.display = 'block';
+                
+                const id = Number(editHistoryModal.getAttribute('data-current-id'));
+                const transaction = treasuryHistory.find(t => t.id === id);
+                if (transaction) {
+                    document.getElementById('edit-history-amount').value = new Intl.NumberFormat('en-US').format(transaction.amount);
+                    document.getElementById('edit-history-date').value = transaction.date;
+                    document.getElementById('edit-history-reason').value = transaction.reason;
+                }
+            } else {
+                showCustomAlert('كلمة المرور غير صحيحة', '❌');
+            }
+        });
+    }
+
+    if (saveHistoryBtn) {
+        saveHistoryBtn.addEventListener('click', () => {
+            const id = Number(editHistoryModal.getAttribute('data-current-id'));
+            const index = treasuryHistory.findIndex(t => t.id === id);
+            if (index !== -1) {
+                const newAmountStr = document.getElementById('edit-history-amount').value;
+                const newAmount = getUnformattedNumber(newAmountStr);
+                const newDate = document.getElementById('edit-history-date').value;
+                const newReason = document.getElementById('edit-history-reason').value;
+
+                if (!newAmount || !newDate || !newReason.trim()) {
+                    showCustomAlert('الرجاء إدخال جميع الحقول', '❌');
+                    return;
+                }
+
+                treasuryHistory[index].amount = newAmount;
+                treasuryHistory[index].date = newDate;
+                treasuryHistory[index].reason = newReason;
+                
+                updateTreasuryUI();
+                editHistoryModal.style.display = 'none';
+                showCustomAlert('تم تعديل الحركة بنجاح', '✅');
+            }
+        });
+    }
+
+    const deleteHistoryModal = document.getElementById('delete-history-modal');
+    const closeDeleteHistoryModalBtn = document.getElementById('close-delete-history-modal-btn');
+    const verifyDeleteHistoryPasswordBtn = document.getElementById('verify-delete-history-password-btn');
+
+    if (closeDeleteHistoryModalBtn) {
+        closeDeleteHistoryModalBtn.addEventListener('click', () => {
+            if (deleteHistoryModal) deleteHistoryModal.style.display = 'none';
+        });
+    }
+
+    if (verifyDeleteHistoryPasswordBtn) {
+        verifyDeleteHistoryPasswordBtn.addEventListener('click', () => {
+            const passwordInput = document.getElementById('delete-history-password');
+            if (passwordInput.value === window.getGlobalPassword()) {
+                const id = Number(deleteHistoryModal.getAttribute('data-current-id'));
+                const index = treasuryHistory.findIndex(t => t.id === id);
+                if (index !== -1) {
+                    treasuryHistory.splice(index, 1);
+                    updateTreasuryUI();
+                    deleteHistoryModal.style.display = 'none';
+                    showCustomAlert('تم حذف الحركة بنجاح', '✅');
+                }
+            } else {
+                showCustomAlert('كلمة المرور غير صحيحة', '❌');
+            }
+        });
     }
 
     if (btnDeposit && btnWithdraw && treasuryModal && cancelTreasuryBtn) {
