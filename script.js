@@ -6,6 +6,25 @@ function bumpDataVersion() {
 bumpDataVersion();
 
 document.addEventListener('DOMContentLoaded', () => {
+    function showCustomAlert(message, icon = '✨') {
+        const alertModal = document.getElementById('custom-alert-modal');
+        const alertMessage = document.getElementById('custom-alert-message');
+        const alertIcon = document.getElementById('custom-alert-icon');
+        const closeAlertBtn = document.getElementById('close-custom-alert-btn');
+
+        if (alertModal && alertMessage && alertIcon) {
+            alertMessage.textContent = message;
+            alertIcon.textContent = icon;
+            alertModal.style.display = 'flex';
+
+            closeAlertBtn.onclick = () => {
+                alertModal.style.display = 'none';
+            };
+        } else {
+            alert(message);
+        }
+    }
+
     // Number formatting helper
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('number-format')) {
@@ -83,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveImagesBtn.addEventListener('click', () => {
             uploadModal.classList.remove('active');
             if (imageCountSpan) imageCountSpan.textContent = `(${uploadedImages.length})`;
-            alert('تم إرفاق الصور بنجاح.');
+            showCustomAlert('تم إرفاق الصور بنجاح.', '🖼️');
         });
         
         imageInput.addEventListener('change', (e) => {
@@ -513,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                 }
                 editingId = null;
-                alert('تم تعديل العقار بنجاح!');
+                showCustomAlert('تم تعديل العقار بنجاح!', '✅');
                 document.querySelector('.submit-btn').textContent = 'حفظ العقار';
             } else {
                 const transaction = {
@@ -527,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     expensesLog: []
                 };
                 transactionsData.push(transaction);
-                alert('تم حفظ العقار بنجاح!');
+                showCustomAlert('تم حفظ العقار بنجاح!', '✅');
             }
 
             renderTransactions();
@@ -630,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const reason = treasuryReasonInput.value;
 
             if (type === 'withdraw' && amount > treasuryBalance) {
-                alert('عذراً، الرصيد الحالي لا يكفي لإتمام عملية السحب.');
+                showCustomAlert('عذراً، الرصيد الحالي لا يكفي لإتمام عملية السحب.', '❌');
                 return;
             }
 
@@ -646,14 +665,73 @@ document.addEventListener('DOMContentLoaded', () => {
             treasuryModal.classList.remove('active');
             
             if (type === 'deposit') {
-                alert('تم الإيداع بنجاح');
+                showCustomAlert('تم الإيداع بنجاح', '✅');
             } else {
-                alert('تم السحب بنجاح');
+                showCustomAlert('تم السحب بنجاح', '✅');
             }
         });
         
         // Initial render
         updateTreasuryUI();
+    }
+
+    // Edit Balance Modal Logic
+    const editBalanceIcon = document.getElementById('edit-balance-icon');
+    const editBalanceModal = document.getElementById('edit-balance-modal');
+    const passwordSection = document.getElementById('password-section');
+    const editAmountSection = document.getElementById('edit-amount-section');
+    const balancePassword = document.getElementById('balance-password');
+    const verifyPasswordBtn = document.getElementById('verify-password-btn');
+    const newBalanceAmount = document.getElementById('new-balance-amount');
+    const saveBalanceBtn = document.getElementById('save-balance-btn');
+    const closeEditModalBtn = document.getElementById('close-edit-modal-btn');
+
+    if (editBalanceIcon) {
+        editBalanceIcon.addEventListener('click', () => {
+            editBalanceModal.style.display = 'flex';
+            passwordSection.style.display = 'block';
+            editAmountSection.style.display = 'none';
+            balancePassword.value = '';
+        });
+    }
+
+    if (closeEditModalBtn) {
+        closeEditModalBtn.addEventListener('click', () => {
+            editBalanceModal.style.display = 'none';
+        });
+    }
+
+    if (verifyPasswordBtn) {
+        verifyPasswordBtn.addEventListener('click', () => {
+            if (balancePassword.value === '1001') {
+                passwordSection.style.display = 'none';
+                editAmountSection.style.display = 'block';
+                newBalanceAmount.value = new Intl.NumberFormat('en-US').format(treasuryBalance);
+            } else {
+                showCustomAlert('كلمة المرور غير صحيحة', '❌');
+            }
+        });
+    }
+
+    if (saveBalanceBtn) {
+        saveBalanceBtn.addEventListener('click', () => {
+            const newTotal = getUnformattedNumber(newBalanceAmount.value);
+            const diff = newTotal - treasuryBalance;
+            
+            if (diff !== 0) {
+                const type = diff > 0 ? 'deposit' : 'withdraw';
+                const now = new Date();
+                treasuryHistory.push({
+                    id: Date.now(),
+                    type: type,
+                    amount: Math.abs(diff),
+                    date: now.toISOString().split('T')[0],
+                    reason: 'تعديل إداري للرصيد'
+                });
+                updateTreasuryUI();
+            }
+            editBalanceModal.style.display = 'none';
+        });
     }
 
     // Inner Treasury Tabs
@@ -755,6 +833,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const resetAliBalanceIcon = document.getElementById('reset-ali-balance-icon');
+    const resetAliBalanceModal = document.getElementById('reset-ali-balance-modal');
+    const resetBalancePassword = document.getElementById('reset-balance-password');
+    const verifyResetPasswordBtn = document.getElementById('verify-reset-password-btn');
+    const closeResetModalBtn = document.getElementById('close-reset-modal-btn');
+
+    if (resetAliBalanceIcon) {
+        resetAliBalanceIcon.addEventListener('click', () => {
+            resetAliBalanceModal.style.display = 'flex';
+            resetBalancePassword.value = '';
+        });
+    }
+
+    if (closeResetModalBtn) {
+        closeResetModalBtn.addEventListener('click', () => {
+            resetAliBalanceModal.style.display = 'none';
+        });
+    }
+
+    if (verifyResetPasswordBtn) {
+        verifyResetPasswordBtn.addEventListener('click', () => {
+            if (resetBalancePassword.value === '1001') {
+                partnershipHistory = [];
+                updatePartnershipUI();
+                resetAliBalanceModal.style.display = 'none';
+                showCustomAlert('تم تصفير الحساب بنجاح!', '✅');
+            } else {
+                showCustomAlert('كلمة المرور غير صحيحة', '❌');
+            }
+        });
+    }
+
     if (btnAddPartnership && partnershipModal && cancelPartnershipBtn && partnershipForm) {
         btnAddPartnership.addEventListener('click', () => {
             partnershipForm.reset();
@@ -783,7 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             updatePartnershipUI();
             partnershipModal.classList.remove('active');
-            alert('تمت إضافة عملية الشراكة بنجاح!');
+            showCustomAlert('تمت إضافة عملية الشراكة بنجاح!', '✅');
         });
 
         updatePartnershipUI();
