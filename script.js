@@ -276,11 +276,47 @@ document.addEventListener('DOMContentLoaded', () => {
         showDetailsModal(t);
     };
 
+    let pendingCommToggle = null;
     window.toggleComm = function(id, type) {
-        let t = transactionsData.find(x => x.id === id);
-        t.commissions[type+'Paid'] = !t.commissions[type+'Paid'];
-        showDetailsModal(t);
+        pendingCommToggle = { id, type };
+        const modal = document.getElementById('comm-password-modal');
+        const input = document.getElementById('comm-password-input');
+        if (modal && input) {
+            input.value = '';
+            modal.style.display = 'flex';
+        }
     };
+
+    const commModal = document.getElementById('comm-password-modal');
+    const closeCommBtn = document.getElementById('close-comm-modal-btn');
+    const verifyCommBtn = document.getElementById('verify-comm-password-btn');
+    const commPasswordInput = document.getElementById('comm-password-input');
+
+    if (closeCommBtn && commModal) {
+        closeCommBtn.addEventListener('click', () => {
+            commModal.style.display = 'none';
+            pendingCommToggle = null;
+        });
+    }
+
+    if (verifyCommBtn && commModal && commPasswordInput) {
+        verifyCommBtn.addEventListener('click', () => {
+            if (commPasswordInput.value === '1001') {
+                if (pendingCommToggle) {
+                    let t = transactionsData.find(x => x.id === pendingCommToggle.id);
+                    if (t) {
+                        t.commissions[pendingCommToggle.type + 'Paid'] = !t.commissions[pendingCommToggle.type + 'Paid'];
+                        showDetailsModal(t);
+                    }
+                }
+                commModal.style.display = 'none';
+                pendingCommToggle = null;
+                showCustomAlert('تم تغيير حالة العمولة بنجاح!', '✅');
+            } else {
+                showCustomAlert('كلمة المرور غير صحيحة', '❌');
+            }
+        });
+    }
 
     window.addExpense = function(id) {
         let t = transactionsData.find(x => x.id === id);
