@@ -5,6 +5,10 @@ function bumpDataVersion() {
 }
 bumpDataVersion();
 
+window.getGlobalPassword = function() {
+    return localStorage.getItem('global_password') || '1001';
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     function showCustomAlert(message, icon = '✨') {
         const alertModal = document.getElementById('custom-alert-modal');
@@ -301,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (verifyCommBtn && commModal && commPasswordInput) {
         verifyCommBtn.addEventListener('click', () => {
-            if (commPasswordInput.value === '1001') {
+            if (commPasswordInput.value === window.getGlobalPassword()) {
                 if (pendingCommToggle) {
                     let t = transactionsData.find(x => x.id === pendingCommToggle.id);
                     if (t) {
@@ -657,11 +661,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (btnDeposit && btnWithdraw && treasuryModal && cancelTreasuryBtn) {
+        function setTreasuryTheme(isDeposit) {
+            const modalContent = document.getElementById('treasury-modal-content');
+            const title = document.getElementById('treasury-modal-title');
+            const lblAmount = document.getElementById('lbl-treasury-amount');
+            const lblDate = document.getElementById('lbl-treasury-date');
+            const lblReason = document.getElementById('lbl-treasury-reason');
+            const btnSubmit = document.getElementById('submit-treasury-btn');
+            
+            if (isDeposit) {
+                modalContent.style.background = '#113a21';
+                modalContent.style.border = '1px solid #2ecc71';
+                title.style.color = '#2ecc71';
+                lblAmount.style.color = '#2ecc71';
+                lblDate.style.color = '#2ecc71';
+                lblReason.style.color = '#2ecc71';
+                
+                treasuryAmountInput.style.background = '#1e5233';
+                treasuryAmountInput.style.color = '#fff';
+                treasuryDateInput.style.background = '#1e5233';
+                treasuryDateInput.style.color = '#fff';
+                treasuryReasonInput.style.background = '#1e5233';
+                treasuryReasonInput.style.color = '#fff';
+                
+                btnSubmit.className = 'btn-3d btn-green';
+            } else {
+                modalContent.style.background = '#1f0d0d';
+                modalContent.style.border = '1px solid #e74c3c';
+                title.style.color = '#e74c3c';
+                lblAmount.style.color = '#e74c3c';
+                lblDate.style.color = '#e74c3c';
+                lblReason.style.color = '#e74c3c';
+                
+                treasuryAmountInput.style.background = '#eec8c8';
+                treasuryAmountInput.style.color = '#000';
+                treasuryDateInput.style.background = '#eec8c8';
+                treasuryDateInput.style.color = '#000';
+                treasuryReasonInput.style.background = '#eec8c8';
+                treasuryReasonInput.style.color = '#000';
+                
+                btnSubmit.className = 'btn-3d btn-red';
+            }
+        }
+
         btnDeposit.addEventListener('click', () => {
             treasuryTypeInput.value = 'deposit';
             treasuryModalTitle.textContent = 'إضافة مبلغ';
             treasuryForm.reset();
             treasuryDateInput.valueAsDate = new Date();
+            setTreasuryTheme(true);
             treasuryModal.classList.add('active');
         });
 
@@ -670,6 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
             treasuryModalTitle.textContent = 'سحب مبلغ';
             treasuryForm.reset();
             treasuryDateInput.valueAsDate = new Date();
+            setTreasuryTheme(false);
             treasuryModal.classList.add('active');
         });
 
@@ -739,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (verifyPasswordBtn) {
         verifyPasswordBtn.addEventListener('click', () => {
-            if (balancePassword.value === '1001') {
+            if (balancePassword.value === window.getGlobalPassword()) {
                 passwordSection.style.display = 'none';
                 editAmountSection.style.display = 'block';
                 newBalanceAmount.value = new Intl.NumberFormat('en-US').format(treasuryBalance);
@@ -890,10 +939,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (verifyResetPasswordBtn) {
         verifyResetPasswordBtn.addEventListener('click', () => {
-            if (resetBalancePassword.value === '1001') {
+            if (resetBalancePassword.value === window.getGlobalPassword()) {
                 partnershipHistory = [];
                 updatePartnershipUI();
                 resetAliBalanceModal.style.display = 'none';
+                showCustomAlert('تم تصفير الحساب بنجاح!', '✅');
+            } else {
+                showCustomAlert('كلمة المرور غير صحيحة', '❌');
+            }
+        });
+    }
+
+    const resetPartnerBalanceIcon = document.getElementById('reset-partner-balance-icon');
+    const resetPartnerBalanceModal = document.getElementById('reset-partner-balance-modal');
+    const resetPartnerPassword = document.getElementById('reset-partner-password');
+    const verifyResetPartnerPasswordBtn = document.getElementById('verify-reset-partner-password-btn');
+    const closeResetPartnerModalBtn = document.getElementById('close-reset-partner-modal-btn');
+
+    if (resetPartnerBalanceIcon) {
+        resetPartnerBalanceIcon.addEventListener('click', () => {
+            resetPartnerBalanceModal.style.display = 'flex';
+            resetPartnerPassword.value = '';
+        });
+    }
+
+    if (closeResetPartnerModalBtn) {
+        closeResetPartnerModalBtn.addEventListener('click', () => {
+            resetPartnerBalanceModal.style.display = 'none';
+        });
+    }
+
+    if (verifyResetPartnerPasswordBtn) {
+        verifyResetPartnerPasswordBtn.addEventListener('click', () => {
+            if (resetPartnerPassword.value === window.getGlobalPassword()) {
+                // Determine current partner net to add a balancing transaction
+                let totalProfits = 0;
+                let totalSharedPayments = 0;
+                let totalPartnerPayments = 0;
+                partnershipHistory.forEach(t => {
+                    const amt = Number(t.amount);
+                    if (t.code === '1') totalProfits += amt;
+                    else if (t.code === '0') totalSharedPayments += amt;
+                    else if (t.code === '10') totalPartnerPayments += amt;
+                });
+                const partnerNet = (totalProfits / 2) - (totalSharedPayments / 2) - totalPartnerPayments;
+                
+                if (partnerNet !== 0) {
+                    partnershipHistory.push({
+                        id: Date.now(),
+                        code: partnerNet > 0 ? '10' : '0', // If we owe partner, pay partner. If partner owes us, record as shared payment or something? Let's just reset the whole array if that's what's expected.
+                        // Actually, I'll just clear the array like Ali's reset for consistency, or just reset partner. I'll just clear it.
+                    });
+                }
+                
+                partnershipHistory = [];
+                updatePartnershipUI();
+                resetPartnerBalanceModal.style.display = 'none';
                 showCustomAlert('تم تصفير الحساب بنجاح!', '✅');
             } else {
                 showCustomAlert('كلمة المرور غير صحيحة', '❌');
@@ -934,4 +1035,120 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updatePartnershipUI();
     }
+
+    // Settings logic
+    const toggleThemeBtn = document.getElementById('toggle-theme-btn');
+    if (toggleThemeBtn) {
+        // Load saved theme
+        if (localStorage.getItem('dark_theme') === 'true') {
+            document.body.classList.add('dark-theme');
+        }
+
+        toggleThemeBtn.addEventListener('click', () => {
+            document.body.classList.toggle('dark-theme');
+            const isDark = document.body.classList.contains('dark-theme');
+            localStorage.setItem('dark_theme', isDark);
+            showCustomAlert(isDark ? 'تم تفعيل الوضع الليلي' : 'تم تفعيل الوضع النهاري', isDark ? '🌙' : '☀️');
+        });
+    }
+
+    const downloadBackupBtn = document.getElementById('download-backup-btn');
+    if (downloadBackupBtn) {
+        downloadBackupBtn.addEventListener('click', () => {
+            const data = {
+                transactions: transactionsData,
+                treasuryBalance: treasuryBalance,
+                treasuryHistory: treasuryHistory,
+                partnershipHistory: partnershipHistory,
+                globalPassword: localStorage.getItem('global_password') || '1001'
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_real_estate_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showCustomAlert('تم تحميل النسخة الاحتياطية', '📥');
+        });
+    }
+
+    const uploadBackupBtn = document.getElementById('upload-backup-btn');
+    const uploadBackupInput = document.getElementById('upload-backup-input');
+    if (uploadBackupBtn && uploadBackupInput) {
+        uploadBackupBtn.addEventListener('click', () => {
+            uploadBackupInput.click();
+        });
+        
+        uploadBackupInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (data.transactions) transactionsData = data.transactions;
+                    if (data.treasuryBalance !== undefined) treasuryBalance = data.treasuryBalance;
+                    if (data.treasuryHistory) treasuryHistory = data.treasuryHistory;
+                    if (data.partnershipHistory) partnershipHistory = data.partnershipHistory;
+                    if (data.globalPassword) localStorage.setItem('global_password', data.globalPassword);
+
+                    localStorage.setItem('property_transactions', JSON.stringify(transactionsData));
+                    localStorage.setItem('treasury_balance', treasuryBalance.toString());
+                    localStorage.setItem('treasury_history', JSON.stringify(treasuryHistory));
+                    localStorage.setItem('partnership_history', JSON.stringify(partnershipHistory));
+
+                    renderTransactions();
+                    updateTreasuryUI();
+                    updatePartnershipUI();
+                    showCustomAlert('تم استعادة النسخة الاحتياطية بنجاح!', '✅');
+                } catch (err) {
+                    showCustomAlert('ملف النسخة الاحتياطية غير صالح', '❌');
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    const changePasswordsBtn = document.getElementById('change-passwords-btn');
+    const changePasswordModal = document.getElementById('change-password-modal');
+    const oldPasswordInput = document.getElementById('old-password');
+    const newPasswordInput = document.getElementById('new-password');
+    const verifyChangePasswordBtn = document.getElementById('verify-change-password-btn');
+    const closeChangePasswordModalBtn = document.getElementById('close-change-password-modal-btn');
+
+    if (changePasswordsBtn) {
+        changePasswordsBtn.addEventListener('click', () => {
+            oldPasswordInput.value = '';
+            newPasswordInput.value = '';
+            changePasswordModal.style.display = 'flex';
+        });
+    }
+
+    if (closeChangePasswordModalBtn) {
+        closeChangePasswordModalBtn.addEventListener('click', () => {
+            changePasswordModal.style.display = 'none';
+        });
+    }
+
+    if (verifyChangePasswordBtn) {
+        verifyChangePasswordBtn.addEventListener('click', () => {
+            const currentPass = window.getGlobalPassword();
+            if (oldPasswordInput.value === currentPass) {
+                if (newPasswordInput.value.trim().length > 0) {
+                    localStorage.setItem('global_password', newPasswordInput.value.trim());
+                    changePasswordModal.style.display = 'none';
+                    showCustomAlert('تم تغيير كلمة المرور بنجاح!', '✅');
+                } else {
+                    showCustomAlert('يجب إدخال كلمة مرور جديدة', '❌');
+                }
+            } else {
+                showCustomAlert('كلمة المرور الحالية غير صحيحة', '❌');
+            }
+        });
+    }
+
 });

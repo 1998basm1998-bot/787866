@@ -12,6 +12,92 @@
     --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
 }
 
+body.dark-theme {
+    --bg-color: linear-gradient(135deg, #0d1117 0%, #161b22 100%) !important;
+    --text-color: #c9d1d9 !important;
+    --card-bg: rgba(30, 30, 40, 0.85) !important;
+    --glass-border: rgba(255, 255, 255, 0.1) !important;
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6) !important;
+    --primary-color: #58a6ff !important;
+    --primary-dark: #1f6feb !important;
+    
+    background: var(--bg-color) !important;
+    color: var(--text-color) !important;
+}
+
+body.dark-theme * {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .stat-card,
+body.dark-theme .card,
+body.dark-theme .details-section,
+body.dark-theme .data-table,
+body.dark-theme .result-box {
+    background: var(--card-bg) !important;
+    color: var(--text-color) !important;
+    box-shadow: var(--glass-shadow) !important;
+}
+
+body.dark-theme .modal-content {
+    background: var(--card-bg);
+    color: var(--text-color) !important;
+    box-shadow: var(--glass-shadow) !important;
+}
+
+body.dark-theme .tab-content {
+    background: transparent !important;
+}
+
+body.dark-theme header, 
+body.dark-theme .tabs, 
+body.dark-theme .treasury-tabs-nav {
+    background: rgba(13, 17, 23, 0.8) !important;
+}
+
+body.dark-theme input, 
+body.dark-theme select, 
+body.dark-theme textarea {
+    background: rgba(1, 4, 9, 0.6);
+    color: #e1e1e6;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.dark-theme .data-table th {
+    background: rgba(1, 4, 9, 0.8) !important;
+    color: #e1e1e6 !important;
+}
+
+body.dark-theme td, 
+body.dark-theme .balance, 
+body.dark-theme .empty-state, 
+body.dark-theme h2, 
+body.dark-theme h3, 
+body.dark-theme h4, 
+body.dark-theme p, 
+body.dark-theme label {
+    color: var(--text-color) !important;
+}
+
+body.dark-theme .expense-item, 
+body.dark-theme .log-item {
+    background: rgba(22, 27, 34, 0.8) !important;
+    color: #e1e1e6 !important;
+}
+
+body.dark-theme .inline-form input {
+    background: rgba(1, 4, 9, 0.6);
+    color: #e1e1e6;
+}
+
+/* Fix for explicitly styled inline div backgrounds */
+body.dark-theme div[style*="background: rgba(255"] {
+    background: rgba(22, 27, 34, 0.8) !important;
+}
+body.dark-theme div[style*="background: white"] {
+    background: rgba(30, 30, 40, 0.85) !important;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -53,7 +139,7 @@ header {
     box-shadow: var(--glass-shadow);
     z-index: 1000;
     border-radius: 20px 20px 0 0;
-    max-width: 320px;
+    max-width: 420px;
     margin: 0 auto;
 }
 
@@ -190,6 +276,7 @@ input:focus, select:focus, textarea:focus {
     flex-direction: column;
     gap: 0.6rem;
     margin-bottom: 1.5rem;
+    align-items: stretch;
     max-width: 350px;
     margin-left: auto;
     margin-right: auto;
@@ -223,6 +310,7 @@ input:focus, select:focus, textarea:focus {
 
 .form-row input, .form-row select {
     flex: 1;
+    min-width: 0;
     border: none;
     border-radius: 0;
     padding: 6px 8px;
@@ -258,10 +346,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 .submit-btn {
-    width: 100%;
-    max-width: 350px;
     display: block;
-    margin: 0 auto;
+    width: 100%;
+    margin-top: 10px;
 }
 
 /* Image Upload Modal Styles */
@@ -323,6 +410,7 @@ input[type="file"] {
 }
 .upload-trigger-btn {
     flex: 1;
+    min-width: 0;
     padding: 6px 10px;
     border: none;
     background-color: transparent;

@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <title>إدارة العقارات</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2.13">
+    <link rel="stylesheet" href="style.css?v=2.18">
 </head>
 <body>
     <header>
@@ -22,15 +22,15 @@
                 <div class="form-grid">
                     <div class="form-row">
                         <label>رقم العقار</label>
-                        <div style="display: flex; width: 100%; align-items: center;">
-                            <select id="prop-number-left" style="width: 35%; border-radius: 0; border-left: 1px solid var(--glass-border); border-right: none; background: transparent; padding: 6px 4px; font-size: 0.9rem;">
+                        <div style="display: flex; flex: 1; min-width: 0; align-items: stretch;">
+                            <select id="prop-number-left" style="flex: 0 0 35%; border-radius: 0; border-left: 1px solid var(--glass-border); border-right: none; background: transparent; padding: 6px 4px; font-size: 0.9rem;">
                                 <option value="">اختر...</option>
                                 <option value="1">1</option>
                                 <option value="11">11</option>
                                 <option value="145">145</option>
                             </select>
-                            <span style="padding: 0 5px; color: var(--text-color); font-weight: bold; background: rgba(255,255,255,0.2); height: 100%; display: flex; align-items: center;">/</span>
-                            <input type="text" id="prop-number-right" required style="width: 65%; border-radius: 0; border-right: none; text-align: left;" dir="ltr">
+                            <span style="padding: 0 5px; color: var(--text-color); font-weight: bold; background: rgba(255,255,255,0.2); display: flex; align-items: center;">/</span>
+                            <input type="text" id="prop-number-right" required style="flex: 1; min-width: 0; border-radius: 0; border-right: none; text-align: left;" dir="ltr">
                             <input type="hidden" id="prop-number">
                         </div>
                     </div>
@@ -74,8 +74,8 @@
                         <label>صور العقار</label>
                         <button type="button" id="open-upload-modal" class="upload-trigger-btn">إضافة وعرض الصور <span id="image-count">(0)</span></button>
                     </div>
+                    <button type="submit" class="btn-3d submit-btn">حفظ العقار</button>
                 </div>
-                <button type="submit" class="btn-3d submit-btn">حفظ العقار</button>
             </form>
         </section>
         
@@ -144,7 +144,10 @@
                             <p class="balance" id="ali-net" style="color: #2980b9; font-size: 1.4rem;">0 دينار</p>
                         </div>
                         <div style="flex: 1; min-width: 140px; padding: 15px; background: rgba(192, 57, 43, 0.1); border-radius: 12px; text-align: center; border: 1px solid rgba(192, 57, 43, 0.2);">
-                            <h4 style="color: #c0392b; margin-bottom: 0.5rem;">صافي حساب الشريك</h4>
+                            <h4 style="color: #c0392b; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                صافي حساب الشريك
+                                <span id="reset-partner-balance-icon" style="cursor: pointer; font-size: 1.1rem; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); transition: transform 0.2s;" title="تصفير الحساب" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">🔄</span>
+                            </h4>
                             <p class="balance" id="partner-net" style="color: #c0392b; font-size: 1.4rem;">0 دينار</p>
                         </div>
                     </div>
@@ -158,32 +161,44 @@
                 </div>
             </div>
         </section>
+
+        <section id="settings" class="tab-content" style="padding: 20px; text-align: center;">
+            <h2 style="margin-bottom: 30px; font-size: 1.8rem; color: var(--primary-color);">الإعدادات</h2>
+            <div style="display: flex; flex-direction: column; gap: 15px; max-width: 400px; margin: 0 auto;">
+                <button id="toggle-theme-btn" class="btn-3d" style="background: linear-gradient(to bottom, #8e44ad, #9b59b6); box-shadow: 0 6px 0 #732d91, 0 8px 15px rgba(142, 68, 173, 0.3);">ليلي / نهاري 🌙</button>
+                <button id="download-backup-btn" class="btn-3d" style="background: linear-gradient(to bottom, #2ecc71, #27ae60); box-shadow: 0 6px 0 #1e8449, 0 8px 15px rgba(46, 204, 113, 0.3);">تحميل نسخة احتياطية 📥</button>
+                <button id="upload-backup-btn" class="btn-3d" style="background: linear-gradient(to bottom, #f39c12, #e67e22); box-shadow: 0 6px 0 #d35400, 0 8px 15px rgba(243, 156, 18, 0.3);">رفع نسخة احتياطية 📤</button>
+                <input type="file" id="upload-backup-input" style="display: none;" accept=".json">
+                <button id="change-passwords-btn" class="btn-3d" style="background: linear-gradient(to bottom, #e74c3c, #c0392b); box-shadow: 0 6px 0 #922b21, 0 8px 15px rgba(231, 76, 60, 0.3);">تغيير كلمات السر 🔒</button>
+            </div>
+        </section>
     </main>
     <nav class="tabs">
         <button class="tab-btn active" data-target="add-property">إضافة عقار</button>
         <button class="tab-btn" data-target="daily-transactions">المعاملات اليومية</button>
         <button class="tab-btn" data-target="treasury">المحفظة</button>
+        <button class="tab-btn" data-target="settings">الإعدادات</button>
     </nav>
 
     <div id="treasury-modal" class="modal">
-        <div class="modal-content" style="max-width: 800px; width: 95%;">
-            <h2 id="treasury-modal-title">إضافة مبلغ</h2>
+        <div id="treasury-modal-content" class="modal-content" style="max-width: 800px; width: 95%; transition: all 0.3s ease;">
+            <h2 id="treasury-modal-title" style="transition: color 0.3s ease;">إضافة مبلغ</h2>
             <form id="treasury-form">
                 <input type="hidden" id="treasury-type" value="deposit">
                 <div class="form-group">
-                    <label>المبلغ (دينار)</label>
-                    <input type="text" id="treasury-amount" class="number-format" required>
+                    <label id="lbl-treasury-amount" style="transition: color 0.3s ease;">المبلغ (دينار)</label>
+                    <input type="text" id="treasury-amount" class="number-format" style="transition: all 0.3s ease;" required>
                 </div>
                 <div class="form-group">
-                    <label>التاريخ</label>
-                    <input type="date" id="treasury-date" required>
+                    <label id="lbl-treasury-date" style="transition: color 0.3s ease;">التاريخ</label>
+                    <input type="date" id="treasury-date" style="transition: all 0.3s ease;" required>
                 </div>
                 <div class="form-group" style="width: 100%;">
-                    <label>السبب</label>
-                    <textarea id="treasury-reason" required rows="6" style="width: 100%; min-height: 150px; font-size: 1.2rem; padding: 15px;"></textarea>
+                    <label id="lbl-treasury-reason" style="transition: color 0.3s ease;">السبب</label>
+                    <textarea id="treasury-reason" required rows="6" style="width: 100%; min-height: 150px; font-size: 1.2rem; padding: 15px; transition: all 0.3s ease;"></textarea>
                 </div>
                 <div class="modal-actions" style="margin-top: 20px;">
-                    <button type="submit" class="btn-3d btn-green">حفظ</button>
+                    <button type="submit" id="submit-treasury-btn" class="btn-3d btn-green">حفظ</button>
                     <button type="button" id="cancel-treasury-btn" class="btn-3d btn-red">إلغاء</button>
                 </div>
             </form>
@@ -300,6 +315,33 @@
         </div>
     </div>
 
+    <!-- Reset Partner Balance Modal -->
+    <div id="reset-partner-balance-modal" style="display: none; z-index: 2000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); justify-content: center; align-items: center;">
+        <div style="background: linear-gradient(145deg, #1e1e38, #15152a); padding: 35px; border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.1); width: 90%; max-width: 350px; text-align: center; animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🔒</div>
+            <h2 style="color: white; margin-bottom: 25px; font-size: 1.5rem; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">التحقق الأمني لتصفير حساب الشريك</h2>
+            <div id="reset-partner-password-section">
+                <input type="password" id="reset-partner-password" class="edit-balance-input" placeholder="كلمة المرور">
+                <button type="button" id="verify-reset-partner-password-btn" class="edit-balance-btn" style="background: linear-gradient(to bottom, #27ae60, #2ecc71); box-shadow: 0 4px 0 #1e8449, 0 5px 15px rgba(46, 204, 113, 0.3);">تأكيد التصفير</button>
+            </div>
+            <button type="button" id="close-reset-partner-modal-btn" class="edit-balance-btn" style="background: linear-gradient(to bottom, #c0392b, #e74c3c); box-shadow: 0 4px 0 #922b21, 0 5px 15px rgba(231, 76, 60, 0.3);">إلغاء</button>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-password-modal" style="display: none; z-index: 2000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); justify-content: center; align-items: center;">
+        <div style="background: linear-gradient(145deg, #1e1e38, #15152a); padding: 35px; border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.1); width: 90%; max-width: 350px; text-align: center; animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid rgba(255,255,255,0.1);">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🔑</div>
+            <h2 style="color: white; margin-bottom: 25px; font-size: 1.5rem; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">تغيير كلمة المرور</h2>
+            <div id="change-password-section">
+                <input type="password" id="old-password" class="edit-balance-input" placeholder="كلمة المرور الحالية">
+                <input type="password" id="new-password" class="edit-balance-input" placeholder="كلمة المرور الجديدة">
+                <button type="button" id="verify-change-password-btn" class="edit-balance-btn" style="background: linear-gradient(to bottom, #27ae60, #2ecc71); box-shadow: 0 4px 0 #1e8449, 0 5px 15px rgba(46, 204, 113, 0.3);">تأكيد التغيير</button>
+            </div>
+            <button type="button" id="close-change-password-modal-btn" class="edit-balance-btn" style="background: linear-gradient(to bottom, #c0392b, #e74c3c); box-shadow: 0 4px 0 #922b21, 0 5px 15px rgba(231, 76, 60, 0.3);">إلغاء</button>
+        </div>
+    </div>
+
     <!-- Custom 3D Alert Modal -->
     <div id="custom-alert-modal" style="display: none; z-index: 3000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); justify-content: center; align-items: center;">
         <div style="background: linear-gradient(145deg, #1e1e38, #15152a); padding: 35px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 2px 0 rgba(255,255,255,0.1); width: 90%; max-width: 350px; text-align: center; animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid rgba(255,255,255,0.1);">
@@ -322,6 +364,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>
