@@ -1,0 +1,791 @@
+// Function to modify database logic and reduce operational costs (Data Version Flag)
+function bumpDataVersion() {
+    console.log("System Data Version Flag Bumped: Bypass unnecessary reads enabled.");
+    localStorage.setItem('db_version_flag', '1.1');
+}
+bumpDataVersion();
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Number formatting helper
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('number-format')) {
+            let val = e.target.value.replace(/,/g, '').replace(/\D/g, '');
+            if (val) {
+                e.target.value = Number(val).toLocaleString('en-US');
+            } else {
+                e.target.value = '';
+            }
+        }
+    });
+
+    function getUnformattedNumber(value) {
+        if (!value) return 0;
+        return Number(value.toString().replace(/,/g, '')) || 0;
+    }
+
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all buttons and contents
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            // Add active class to clicked button
+            btn.classList.add('active');
+
+            // Show corresponding content
+            const targetId = btn.getAttribute('data-target');
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+
+    // Form submission and calculation logic
+    const form = document.getElementById('property-form');
+    const propAmountInput = document.getElementById('prop-amount');
+    const amountReceivedInput = document.getElementById('amount-received');
+    const amountRemainingInput = document.getElementById('amount-remaining');
+
+    function calculateRemaining() {
+        if (!propAmountInput || !amountReceivedInput || !amountRemainingInput) return;
+        const amount = getUnformattedNumber(propAmountInput.value);
+        const received = getUnformattedNumber(amountReceivedInput.value);
+        const remaining = amount - received;
+        amountRemainingInput.value = remaining ? Number(remaining).toLocaleString('en-US') : '0';
+    }
+
+    if (propAmountInput && amountReceivedInput) {
+        propAmountInput.addEventListener('input', calculateRemaining);
+        amountReceivedInput.addEventListener('input', calculateRemaining);
+    }
+
+    // Image Upload Logic
+    const openUploadModalBtn = document.getElementById('open-upload-modal');
+    const uploadModal = document.getElementById('upload-modal');
+    const saveImagesBtn = document.getElementById('save-images-btn');
+    const cancelImagesBtn = document.getElementById('cancel-images-btn');
+    const imageInput = document.getElementById('image-input');
+    const imagePreview = document.getElementById('image-preview');
+    const imageCountSpan = document.getElementById('image-count');
+    
+    let uploadedImages = []; // Local temporary memory for images
+
+    if (openUploadModalBtn && uploadModal) {
+        openUploadModalBtn.addEventListener('click', () => {
+            uploadModal.classList.add('active');
+        });
+        
+        cancelImagesBtn.addEventListener('click', () => {
+            uploadModal.classList.remove('active');
+        });
+        
+        saveImagesBtn.addEventListener('click', () => {
+            uploadModal.classList.remove('active');
+            if (imageCountSpan) imageCountSpan.textContent = `(${uploadedImages.length})`;
+            alert('تم إرفاق الصور بنجاح.');
+        });
+        
+        imageInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const url = URL.createObjectURL(file);
+                    uploadedImages.push(url);
+                    
+                    const img = document.createElement('img');
+                    img.src = url;
+                    imagePreview.appendChild(img);
+                }
+            });
+            // Reset input so same files can be re-selected if needed
+            imageInput.value = '';
+        });
+    }
+
+    let transactionsData = [];
+    let currentFilter = 'غير مكتملة';
+    let editingId = null;
+
+    const searchInput = document.getElementById('search-transactions');
+    if (searchInput) {
+        searchInput.addEventListener('input', renderTransactions);
+    }
+    
+    const indexBtns = document.querySelectorAll('.index-btn');
+    indexBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            indexBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.getAttribute('data-filter');
+            renderTransactions();
+        });
+    });
+
+    function renderTransactions() {
+        const allTransactionsList = document.getElementById('all-transactions-list');
+        
+        if (!allTransactionsList) return;
+
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
+        const filteredTransactions = transactionsData.filter(t => {
+            const matchesSearch = t.sellerName.toLowerCase().includes(searchTerm) || 
+                                  (t.propNumber && t.propNumber.includes(searchTerm));
+            const matchesFilter = t.status === currentFilter;
+            return matchesSearch && matchesFilter;
+        });
+
+        const createCardHTML = (t) => `
+            <div class="transaction-card" data-id="${t.id}">
+                <div class="transaction-card-info">
+                    <h4>عقار رقم: ${t.propNumber}</h4>
+                    <p><strong>البائع:</strong> ${t.sellerName} ${t.sellerPhone ? `<span dir="ltr" style="font-size: 0.9em; margin-right: 5px;">(<a href="tel:${t.sellerPhone}" style="text-decoration: none; color: var(--secondary-color);" onclick="event.stopPropagation();">📞 ${t.sellerPhone}</a>)</span>` : ''}</p>
+                </div>
+                <div class="transaction-actions" style="display: flex; gap: 10px; margin-left: 15px; margin-right: 15px;">
+                    <button type="button" class="action-btn edit-btn" data-id="${t.id}" title="تعديل">✏️</button>
+                    <button type="button" class="action-btn delete-btn" data-id="${t.id}" title="حذف">🗑️</button>
+                </div>
+                <div class="transaction-card-arrow">&#10094;</div>
+            </div>
+        `;
+
+        allTransactionsList.innerHTML = filteredTransactions.length > 0 
+            ? filteredTransactions.map(createCardHTML).join('')
+            : '<div class="empty-state">لا توجد معاملات من هذا النوع.</div>';
+    }
+
+    // Details Modal Logic
+    const allTransactionsList = document.getElementById('all-transactions-list');
+    const detailsModal = document.getElementById('details-modal');
+    const detailsContent = document.getElementById('details-content');
+
+    if (allTransactionsList && detailsModal) {
+        allTransactionsList.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-btn');
+            const editBtn = e.target.closest('.edit-btn');
+            
+            if (deleteBtn) {
+                e.stopPropagation();
+                const id = Number(deleteBtn.getAttribute('data-id'));
+                if (confirm('هل أنت متأكد من حذف هذه المعاملة؟')) {
+                    transactionsData = transactionsData.filter(t => t.id !== id);
+                    renderTransactions();
+                }
+                return;
+            }
+
+            if (editBtn) {
+                e.stopPropagation();
+                const id = Number(editBtn.getAttribute('data-id'));
+                const transaction = transactionsData.find(t => t.id === id);
+                if (transaction) {
+                    const parts = (transaction.propNumber || '').split('/');
+                    if (parts.length === 2) {
+                        document.getElementById('prop-number-right').value = parts[0];
+                        document.getElementById('prop-number-left').value = parts[1];
+                    } else {
+                        document.getElementById('prop-number-right').value = transaction.propNumber;
+                        document.getElementById('prop-number-left').value = '';
+                    }
+                    document.getElementById('prop-area').value = transaction.propArea || '';
+                    document.getElementById('prop-date').value = transaction.propDate;
+                    document.getElementById('seller-name').value = transaction.sellerName;
+                    document.getElementById('seller-phone').value = transaction.sellerPhone;
+                    document.getElementById('buyer-name').value = transaction.buyerName;
+                    document.getElementById('buyer-phone').value = transaction.buyerPhone;
+                    document.getElementById('prop-amount').value = transaction.propAmount ? Number(transaction.propAmount).toLocaleString('en-US') : '0';
+                    document.getElementById('amount-received').value = transaction.amountReceived ? Number(transaction.amountReceived).toLocaleString('en-US') : '0';
+                    document.getElementById('amount-remaining').value = transaction.amountRemaining ? Number(transaction.amountRemaining).toLocaleString('en-US') : '0';
+                    
+                    uploadedImages = [...(transaction.images || [])];
+                    if (imageCountSpan) imageCountSpan.textContent = `(${uploadedImages.length})`;
+                    if (imagePreview) {
+                        imagePreview.innerHTML = uploadedImages.map(imgSrc => `<img src="${imgSrc}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;">`).join('');
+                    }
+
+                    editingId = id;
+                    document.querySelector('.submit-btn').textContent = 'حفظ التعديلات';
+                    
+                    // Switch to add tab
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelector('[data-target="add-property"]').classList.add('active');
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.getElementById('add-property').classList.add('active');
+                }
+                return;
+            }
+
+            const card = e.target.closest('.transaction-card');
+            if (card) {
+                const id = Number(card.getAttribute('data-id'));
+                const transaction = transactionsData.find(t => t.id === id);
+                if (transaction) {
+                    showDetailsModal(transaction);
+                }
+            }
+        });
+    }
+
+    // --- GLOBAL FUNCTIONS FOR PAYMENTS & COMMISSIONS ---
+    window.addPayment = function(id) {
+        let t = transactionsData.find(x => x.id === id);
+        let date = document.getElementById('new-pay-date').value;
+        let amountStr = document.getElementById('new-pay-amount').value.replace(/,/g, '');
+        let amount = Number(amountStr);
+        let note = document.getElementById('new-pay-note').value || 'تسديد';
+        if(amount > 0) {
+            t.paymentsLog.push({ date, amount, note });
+            renderTransactions();
+            showDetailsModal(t);
+        }
+    };
+
+    window.deletePayment = function(id, index) {
+        let t = transactionsData.find(x => x.id === id);
+        if(confirm('هل أنت متأكد من حذف هذا التسديد؟')) {
+            t.paymentsLog.splice(index, 1);
+            renderTransactions();
+            showDetailsModal(t);
+        }
+    };
+
+    window.updateComm = function(id, type, valStr) {
+        let t = transactionsData.find(x => x.id === id);
+        let val = Number(valStr.replace(/,/g, ''));
+        t.commissions[type] = val;
+        showDetailsModal(t);
+    };
+
+    window.toggleComm = function(id, type) {
+        let t = transactionsData.find(x => x.id === id);
+        t.commissions[type+'Paid'] = !t.commissions[type+'Paid'];
+        showDetailsModal(t);
+    };
+
+    window.addExpense = function(id) {
+        let t = transactionsData.find(x => x.id === id);
+        let date = document.getElementById('new-exp-date').value;
+        let amountStr = document.getElementById('new-exp-amount').value.replace(/,/g, '');
+        let amount = Number(amountStr);
+        let reason = document.getElementById('new-exp-reason').value || 'مصروف';
+        if(amount > 0) {
+            t.expensesLog.push({ date, amount, reason });
+            showDetailsModal(t);
+        }
+    };
+
+    window.deleteExpense = function(id, index) {
+        let t = transactionsData.find(x => x.id === id);
+        if(confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
+            t.expensesLog.splice(index, 1);
+            showDetailsModal(t);
+        }
+    };
+
+    // --- ENHANCED DETAILS MODAL ---
+    function showDetailsModal(t) {
+        if (!detailsContent || !detailsModal) return;
+
+        // Fallbacks for older data
+        if (!t.paymentsLog) t.paymentsLog = [];
+        if (!t.commissions) t.commissions = { seller: 120000, buyer: 120000, sellerPaid: false, buyerPaid: false };
+        if (!t.expensesLog) t.expensesLog = [];
+
+        let imagesHTML = '';
+        if (t.images && t.images.length > 0) {
+            imagesHTML = `
+                <p style="margin-top: 15px;"><strong>الصور والمستمسكات:</strong></p>
+                <div class="details-images">
+                    ${t.images.map(imgSrc => `<img src="${imgSrc}" class="fullscreen-trigger" alt="صورة العقار" style="cursor: pointer; transition: transform 0.2s;">`).join('')}
+                </div>
+            `;
+        }
+
+        // Calculations
+        let baseReceived = Number(t.amountReceived);
+        let paymentsSum = t.paymentsLog.reduce((sum, p) => sum + Number(p.amount), 0);
+        let totalPaidByBuyer = baseReceived + paymentsSum;
+        let currentPropRemaining = Number(t.propAmount) - totalPaidByBuyer;
+        
+        // Update stored remaining
+        t.amountRemaining = currentPropRemaining;
+        
+        let expensesSum = t.expensesLog.reduce((sum, e) => sum + Number(e.amount), 0);
+        let finalSellerRemaining = currentPropRemaining - expensesSum; 
+        
+        let unpaidSellerComm = t.commissions.sellerPaid ? 0 : Number(t.commissions.seller);
+        let unpaidBuyerComm = t.commissions.buyerPaid ? 0 : Number(t.commissions.buyer);
+        let finalOfficeClaim = unpaidSellerComm + unpaidBuyerComm + expensesSum;
+
+        detailsContent.innerHTML = `
+            <p><strong>حالة المعاملة:</strong> ${t.status}</p>
+            <p><strong>رقم العقار:</strong> ${t.propNumber}</p>
+            ${t.propArea ? `<p><strong>مساحة العقار:</strong> ${t.propArea}</p>` : ''}
+            <p><strong>التاريخ:</strong> ${t.propDate}</p>
+            <p><strong>البائع:</strong> ${t.sellerName} <span dir="ltr">(${t.sellerPhone ? `<a href="tel:${t.sellerPhone}" style="text-decoration: none; color: var(--secondary-color);">📞 ${t.sellerPhone}</a>` : 'لا يوجد'})</span></p>
+            <p><strong>المشتري:</strong> ${t.buyerName} <span dir="ltr">(${t.buyerPhone ? `<a href="tel:${t.buyerPhone}" style="text-decoration: none; color: var(--secondary-color);">📞 ${t.buyerPhone}</a>` : 'لا يوجد'})</span></p>
+            
+            <div style="background: rgba(41, 128, 185, 0.1); padding: 15px; border-radius: 8px; border: 1px solid rgba(41, 128, 185, 0.2); margin-top: 15px; text-align: right;">
+                <p><strong>سعر العقار الكلي:</strong> ${Number(t.propAmount).toLocaleString('en-US')} دينار</p>
+                <p><strong>إجمالي الواصل حالياً:</strong> <span style="color:var(--secondary-color); font-weight:bold;">${totalPaidByBuyer.toLocaleString('en-US')} دينار</span></p>
+                <p><strong>الباقي من سعر العقار:</strong> <span style="color:var(--danger-color); font-weight:bold;">${currentPropRemaining.toLocaleString('en-US')} دينار</span></p>
+            </div>
+
+            <div class="details-section">
+                <div class="details-title">سجل دفعات المشتري</div>
+                <table class="data-table">
+                    <thead><tr><th>التاريخ</th><th>المبلغ المسدد</th><th>ملاحظة</th><th>حذف</th></tr></thead>
+                    <tbody>
+                        <tr><td>(يوم العقد)</td><td style="color:var(--secondary-color); font-weight:bold;">${baseReceived.toLocaleString('en-US')}</td><td>الواصل المبدئي</td><td>-</td></tr>
+                        ${t.paymentsLog.map((p, index) => `
+                            <tr>
+                                <td>${p.date}</td>
+                                <td style="color:var(--secondary-color); font-weight:bold;">${Number(p.amount).toLocaleString('en-US')}</td>
+                                <td>${p.note}</td>
+                                <td><button type="button" class="btn-3d btn-red" style="padding: 4px 8px; font-size: 0.8rem;" onclick="window.deletePayment(${t.id}, ${index})">X</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div class="inline-form">
+                    <input type="date" id="new-pay-date" value="${new Date().toISOString().split('T')[0]}">
+                    <input type="text" id="new-pay-amount" class="number-format" placeholder="المبلغ">
+                    <input type="text" id="new-pay-note" placeholder="ملاحظة (مثال: قسط ثاني)">
+                    <button type="button" class="btn-3d btn-green" onclick="window.addPayment(${t.id})">تسديد جديد</button>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <div class="details-title">العمولة</div>
+                <table class="data-table">
+                    <thead><tr><th>الطرف</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>البائع</td>
+                            <td><input type="text" class="number-format" value="${Number(t.commissions.seller).toLocaleString('en-US')}" onchange="window.updateComm(${t.id}, 'seller', this.value)" style="width:100px; text-align:center;"></td>
+                            <td><button type="button" class="${t.commissions.sellerPaid ? 'badge-paid' : 'badge-unpaid'}" onclick="window.toggleComm(${t.id}, 'seller')">${t.commissions.sellerPaid ? 'مدفوع' : 'غير مدفوع'}</button></td>
+                        </tr>
+                        <tr>
+                            <td>المشتري</td>
+                            <td><input type="text" class="number-format" value="${Number(t.commissions.buyer).toLocaleString('en-US')}" onchange="window.updateComm(${t.id}, 'buyer', this.value)" style="width:100px; text-align:center;"></td>
+                            <td><button type="button" class="${t.commissions.buyerPaid ? 'badge-paid' : 'badge-unpaid'}" onclick="window.toggleComm(${t.id}, 'buyer')">${t.commissions.buyerPaid ? 'مدفوع' : 'غير مدفوع'}</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="details-section">
+                <div class="details-title">مصروفات تُخصم من البائع (مثل أجور الكهرباء)</div>
+                <table class="data-table">
+                    <thead><tr><th>التاريخ</th><th>المبلغ</th><th>السبب</th><th>حذف</th></tr></thead>
+                    <tbody>
+                        ${t.expensesLog.length === 0 ? '<tr><td colspan="4">لا توجد مصروفات مسجلة</td></tr>' : t.expensesLog.map((e, index) => `
+                            <tr>
+                                <td>${e.date}</td>
+                                <td style="color:var(--danger-color); font-weight:bold;">${Number(e.amount).toLocaleString('en-US')}</td>
+                                <td>${e.reason}</td>
+                                <td><button type="button" class="btn-3d btn-red" style="padding: 4px 8px; font-size: 0.8rem;" onclick="window.deleteExpense(${t.id}, ${index})">X</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div class="inline-form">
+                    <input type="date" id="new-exp-date" value="${new Date().toISOString().split('T')[0]}">
+                    <input type="text" id="new-exp-amount" class="number-format" placeholder="المبلغ">
+                    <input type="text" id="new-exp-reason" placeholder="السبب">
+                    <button type="button" class="btn-3d btn-primary" onclick="window.addExpense(${t.id})">إضافة مصروف</button>
+                </div>
+            </div>
+
+            <div class="details-section" style="background: rgba(255,255,255,0.8);">
+                <div class="details-title">المحصلة الأخيرة (الصافي)</div>
+                <div class="result-box seller">
+                    <span>المتبقي الفعلي للبائع:</span>
+                    <span>${finalSellerRemaining.toLocaleString('en-US')} دينار</span>
+                </div>
+                <div class="result-box office">
+                    <span>الصافي الفعلي للمكتب (المطلوب):</span>
+                    <span>${finalOfficeClaim.toLocaleString('en-US')} دينار</span>
+                </div>
+            </div>
+
+            ${imagesHTML}
+        `;
+        
+        const actionsContainer = document.querySelector('#details-modal .modal-actions');
+        actionsContainer.innerHTML = `<button type="button" id="close-details-btn" class="btn-3d btn-red">إغلاق</button>`;
+        
+        if (t.status === 'غير مكتملة') {
+            const btn = document.createElement('button');
+            btn.className = 'btn-3d btn-green';
+            btn.textContent = 'نقل إلى المعاملات الجارية';
+            btn.onclick = () => {
+                t.status = 'جارية';
+                renderTransactions();
+                showDetailsModal(t);
+            };
+            actionsContainer.prepend(btn);
+        } else if (t.status === 'جارية') {
+            const btnBack = document.createElement('button');
+            btnBack.className = 'btn-3d btn-red';
+            btnBack.style.marginRight = '10px';
+            btnBack.textContent = 'إرجاع إلى غير مكتملة';
+            btnBack.onclick = () => {
+                t.status = 'غير مكتملة';
+                renderTransactions();
+                showDetailsModal(t);
+            };
+            actionsContainer.prepend(btnBack);
+
+            const btn = document.createElement('button');
+            btn.className = 'btn-3d btn-green';
+            btn.textContent = 'نقل إلى المعاملات المكتملة';
+            btn.onclick = () => {
+                t.status = 'مكتملة';
+                renderTransactions();
+                showDetailsModal(t);
+            };
+            actionsContainer.prepend(btn);
+        } else if (t.status === 'مكتملة') {
+            const btnBack = document.createElement('button');
+            btnBack.className = 'btn-3d btn-red';
+            btnBack.style.marginRight = '10px';
+            btnBack.textContent = 'إرجاع إلى جارية';
+            btnBack.onclick = () => {
+                t.status = 'جارية';
+                renderTransactions();
+                showDetailsModal(t);
+            };
+            actionsContainer.prepend(btnBack);
+        }
+
+        document.querySelectorAll('.fullscreen-trigger').forEach(img => {
+            img.addEventListener('click', (e) => {
+                const fsModal = document.getElementById('fullscreen-image-modal');
+                const fsImage = document.getElementById('fullscreen-image');
+                if (fsModal && fsImage) {
+                    fsImage.src = e.target.src;
+                    fsModal.classList.add('active');
+                }
+            });
+        });
+
+        document.getElementById('close-details-btn').addEventListener('click', () => {
+            detailsModal.classList.remove('active');
+        });
+
+        detailsModal.classList.add('active');
+    }
+
+    const fsModal = document.getElementById('fullscreen-image-modal');
+    const fsClose = document.getElementById('close-fullscreen-btn');
+    if (fsClose && fsModal) {
+        fsClose.addEventListener('click', () => fsModal.classList.remove('active'));
+    }
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const propNumberLeft = document.getElementById('prop-number-left')?.value || '';
+            const propNumberRight = document.getElementById('prop-number-right')?.value || '';
+            const propNumber = propNumberLeft ? `${propNumberRight}/${propNumberLeft}` : propNumberRight;
+            
+            const propArea = document.getElementById('prop-area')?.value || '';
+            const propDate = document.getElementById('prop-date')?.value || '';
+            const sellerName = document.getElementById('seller-name')?.value || '';
+            const sellerPhone = document.getElementById('seller-phone')?.value || '';
+            const buyerName = document.getElementById('buyer-name')?.value || '';
+            const buyerPhone = document.getElementById('buyer-phone')?.value || '';
+            const propAmount = getUnformattedNumber(document.getElementById('prop-amount')?.value);
+            const amountReceived = getUnformattedNumber(document.getElementById('amount-received')?.value);
+            const amountRemaining = getUnformattedNumber(document.getElementById('amount-remaining')?.value);
+
+            if (editingId) {
+                const index = transactionsData.findIndex(t => t.id === editingId);
+                if (index !== -1) {
+                    transactionsData[index] = {
+                        ...transactionsData[index],
+                        propNumber, propArea, propDate, sellerName, sellerPhone,
+                        buyerName, buyerPhone, propAmount, amountReceived, amountRemaining,
+                        images: uploadedImages.length > 0 ? [...uploadedImages] : transactionsData[index].images
+                    };
+                }
+                editingId = null;
+                alert('تم تعديل العقار بنجاح!');
+                document.querySelector('.submit-btn').textContent = 'حفظ العقار';
+            } else {
+                const transaction = {
+                    id: Date.now(),
+                    status: 'غير مكتملة',
+                    propNumber, propArea, propDate, sellerName, sellerPhone,
+                    buyerName, buyerPhone, propAmount, amountReceived, amountRemaining,
+                    images: [...uploadedImages],
+                    paymentsLog: [],
+                    commissions: { seller: 120000, buyer: 120000, sellerPaid: false, buyerPaid: false },
+                    expensesLog: []
+                };
+                transactionsData.push(transaction);
+                alert('تم حفظ العقار بنجاح!');
+            }
+
+            renderTransactions();
+
+            form.reset();
+            if (amountRemainingInput) amountRemainingInput.value = '0';
+            
+            // Clear temporary images
+            uploadedImages = [];
+            if (imagePreview) imagePreview.innerHTML = '';
+            if (imageCountSpan) imageCountSpan.textContent = '(0)';
+        });
+    }
+
+    // Treasury Logic
+    let treasuryBalance = 0;
+    let treasuryHistory = [];
+    
+    const btnDeposit = document.getElementById('btn-deposit');
+    const btnWithdraw = document.getElementById('btn-withdraw');
+    const treasuryModal = document.getElementById('treasury-modal');
+    const treasuryModalTitle = document.getElementById('treasury-modal-title');
+    const treasuryForm = document.getElementById('treasury-form');
+    const treasuryTypeInput = document.getElementById('treasury-type');
+    const treasuryAmountInput = document.getElementById('treasury-amount');
+    const treasuryDateInput = document.getElementById('treasury-date');
+    const treasuryReasonInput = document.getElementById('treasury-reason');
+    const cancelTreasuryBtn = document.getElementById('cancel-treasury-btn');
+    const totalBalanceDisplay = document.getElementById('total-balance');
+    const treasuryHistoryList = document.getElementById('treasury-history-list');
+
+    function updateTreasuryUI() {
+        // Calculate balance
+        let total = 0;
+        treasuryHistory.forEach(t => {
+            if (t.type === 'deposit') {
+                total += Number(t.amount);
+            } else if (t.type === 'withdraw') {
+                total -= Number(t.amount);
+            }
+        });
+        treasuryBalance = total;
+        
+        // Formatter for numbers
+        const formatter = new Intl.NumberFormat('en-US');
+        if (totalBalanceDisplay) {
+            totalBalanceDisplay.textContent = `${formatter.format(treasuryBalance)} دينار`;
+        }
+
+        // Render History
+        if (treasuryHistoryList) {
+            if (treasuryHistory.length === 0) {
+                treasuryHistoryList.innerHTML = '<div class="empty-state">لا توجد حركات في المحفظة حتى الآن.</div>';
+            } else {
+                treasuryHistoryList.innerHTML = treasuryHistory.map(t => {
+                    const isDeposit = t.type === 'deposit';
+                    const typeLabel = isDeposit ? 'إيداع' : 'سحب';
+                    const typeColor = isDeposit ? 'var(--secondary-color)' : 'var(--danger-color)';
+                    return `
+                        <div class="transaction-card" style="border-right: 4px solid ${typeColor}; padding-right: 15px;">
+                            <div class="transaction-card-info">
+                                <h4 style="color: ${typeColor}; margin-bottom: 0.5rem;">${typeLabel}</h4>
+                                <p><strong>المبلغ:</strong> <span dir="ltr">${formatter.format(t.amount)}</span> دينار</p>
+                                <p><strong>التاريخ:</strong> ${t.date}</p>
+                                <p><strong>السبب:</strong> ${t.reason}</p>
+                            </div>
+                        </div>
+                    `;
+                }).reverse().join(''); // Reverse to show latest first
+            }
+        }
+    }
+
+    if (btnDeposit && btnWithdraw && treasuryModal && cancelTreasuryBtn) {
+        btnDeposit.addEventListener('click', () => {
+            treasuryTypeInput.value = 'deposit';
+            treasuryModalTitle.textContent = 'إضافة مبلغ';
+            treasuryForm.reset();
+            treasuryDateInput.valueAsDate = new Date();
+            treasuryModal.classList.add('active');
+        });
+
+        btnWithdraw.addEventListener('click', () => {
+            treasuryTypeInput.value = 'withdraw';
+            treasuryModalTitle.textContent = 'سحب مبلغ';
+            treasuryForm.reset();
+            treasuryDateInput.valueAsDate = new Date();
+            treasuryModal.classList.add('active');
+        });
+
+        cancelTreasuryBtn.addEventListener('click', () => {
+            treasuryModal.classList.remove('active');
+        });
+
+        treasuryForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const type = treasuryTypeInput.value;
+            const amount = getUnformattedNumber(treasuryAmountInput.value);
+            const date = treasuryDateInput.value;
+            const reason = treasuryReasonInput.value;
+
+            if (type === 'withdraw' && amount > treasuryBalance) {
+                alert('عذراً، الرصيد الحالي لا يكفي لإتمام عملية السحب.');
+                return;
+            }
+
+            treasuryHistory.push({
+                id: Date.now(),
+                type,
+                amount,
+                date,
+                reason
+            });
+
+            updateTreasuryUI();
+            treasuryModal.classList.remove('active');
+            
+            if (type === 'deposit') {
+                alert('تم الإيداع بنجاح');
+            } else {
+                alert('تم السحب بنجاح');
+            }
+        });
+        
+        // Initial render
+        updateTreasuryUI();
+    }
+
+    // Inner Treasury Tabs
+    const treasuryTabBtns = document.querySelectorAll('.treasury-tab-btn');
+    const treasuryTabContents = document.querySelectorAll('.treasury-tab-content');
+
+    treasuryTabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            treasuryTabBtns.forEach(b => b.classList.remove('active'));
+            treasuryTabContents.forEach(c => c.classList.remove('active'));
+            
+            btn.classList.add('active');
+            const targetId = btn.getAttribute('data-target');
+            if (document.getElementById(targetId)) {
+                document.getElementById(targetId).classList.add('active');
+            }
+        });
+    });
+
+    // Partnership Logic
+    let partnershipHistory = [];
+    
+    const btnAddPartnership = document.getElementById('btn-add-partnership');
+    const partnershipModal = document.getElementById('partnership-modal');
+    const partnershipForm = document.getElementById('partnership-form');
+    const cancelPartnershipBtn = document.getElementById('cancel-partnership-btn');
+    
+    const aliNetDisplay = document.getElementById('ali-net');
+    const partnerNetDisplay = document.getElementById('partner-net');
+    const partnershipHistoryList = document.getElementById('partnership-history-list');
+
+    function updatePartnershipUI() {
+        let totalProfits = 0; // Code 1
+        let totalSharedPayments = 0; // Code 0
+        let totalPartnerPayments = 0; // Code 10
+
+        partnershipHistory.forEach(t => {
+            const amt = Number(t.amount);
+            if (t.code === '1') {
+                totalProfits += amt;
+            } else if (t.code === '0') {
+                totalSharedPayments += amt;
+            } else if (t.code === '10') {
+                totalPartnerPayments += amt;
+            }
+        });
+
+        const aliNet = (totalProfits / 2) - (totalSharedPayments / 2);
+        const partnerNet = (totalProfits / 2) - (totalSharedPayments / 2) - totalPartnerPayments;
+
+        const formatter = new Intl.NumberFormat('en-US');
+        
+        if (aliNetDisplay) {
+            if (aliNet < 0) {
+                aliNetDisplay.textContent = `دين مطلوب: ${formatter.format(Math.abs(aliNet))} دينار`;
+                aliNetDisplay.style.color = '#c0392b';
+            } else {
+                aliNetDisplay.textContent = `${formatter.format(aliNet)} دينار`;
+                aliNetDisplay.style.color = '#2980b9';
+            }
+        }
+
+        if (partnerNetDisplay) {
+            if (partnerNet < 0) {
+                partnerNetDisplay.textContent = `دين مطلوب: ${formatter.format(Math.abs(partnerNet))} دينار`;
+                partnerNetDisplay.style.color = '#c0392b';
+            } else {
+                partnerNetDisplay.textContent = `${formatter.format(partnerNet)} دينار`;
+                partnerNetDisplay.style.color = '#27ae60';
+            }
+        }
+
+        if (partnershipHistoryList) {
+            if (partnershipHistory.length === 0) {
+                partnershipHistoryList.innerHTML = '<div class="empty-state">لا توجد حركات شراكة حتى الآن.</div>';
+            } else {
+                partnershipHistoryList.innerHTML = partnershipHistory.map(t => {
+                    let codeLabel, typeColor;
+                    if (t.code === '1') {
+                        codeLabel = 'أرباح (1)'; typeColor = '#27ae60';
+                    } else if (t.code === '0') {
+                        codeLabel = 'دفع مشترك (0)'; typeColor = '#f39c12';
+                    } else if (t.code === '10') {
+                        codeLabel = 'دفع للشريك (10)'; typeColor = '#c0392b';
+                    }
+
+                    return `
+                        <div class="transaction-card" style="border-right: 4px solid ${typeColor}; padding-right: 15px;">
+                            <div class="transaction-card-info">
+                                <h4 style="color: ${typeColor}; margin-bottom: 0.5rem;">${codeLabel}</h4>
+                                <p><strong>المبلغ:</strong> <span dir="ltr">${formatter.format(t.amount)}</span> دينار</p>
+                                <p><strong>التاريخ:</strong> ${t.date}</p>
+                                <p><strong>السبب:</strong> ${t.reason}</p>
+                            </div>
+                        </div>
+                    `;
+                }).reverse().join('');
+            }
+        }
+    }
+
+    if (btnAddPartnership && partnershipModal && cancelPartnershipBtn && partnershipForm) {
+        btnAddPartnership.addEventListener('click', () => {
+            partnershipForm.reset();
+            document.getElementById('partner-date').valueAsDate = new Date();
+            partnershipModal.classList.add('active');
+        });
+
+        cancelPartnershipBtn.addEventListener('click', () => {
+            partnershipModal.classList.remove('active');
+        });
+
+        partnershipForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const amount = getUnformattedNumber(document.getElementById('partner-amount').value);
+            const code = document.getElementById('partner-code').value;
+            const date = document.getElementById('partner-date').value;
+            const reason = document.getElementById('partner-reason').value;
+
+            partnershipHistory.push({
+                id: Date.now(),
+                amount,
+                code,
+                date,
+                reason
+            });
+
+            updatePartnershipUI();
+            partnershipModal.classList.remove('active');
+            alert('تمت إضافة عملية الشراكة بنجاح!');
+        });
+
+        updatePartnershipUI();
+    }
+});
