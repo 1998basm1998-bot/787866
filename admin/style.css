@@ -316,6 +316,7 @@ input:focus, select:focus, textarea:focus {
     padding: 6px 8px;
     font-size: 0.9rem;
     background: transparent;
+    text-align: center;
 }
 
 .form-row input:focus, .form-row select:focus {
@@ -509,9 +510,28 @@ input[type="file"] {
 }
 
 .index-btn.active {
+    /* Fallback */
     background: white;
     color: var(--primary-color);
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.index-btn[data-filter="غير مكتملة"].active {
+    background: #e74c3c;
+    color: white;
+    box-shadow: 0 2px 5px rgba(231, 76, 60, 0.4);
+}
+
+.index-btn[data-filter="جارية"].active {
+    background: #2ecc71;
+    color: white;
+    box-shadow: 0 2px 5px rgba(46, 204, 113, 0.4);
+}
+
+.index-btn[data-filter="مكتملة"].active {
+    background: #f1c40f;
+    color: #333;
+    box-shadow: 0 2px 5px rgba(241, 196, 15, 0.4);
 }
 
 .search-container {

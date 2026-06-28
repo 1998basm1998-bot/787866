@@ -1,3 +1,6 @@
+import { db } from './firebase.js';
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
 // Function to modify database logic and reduce operational costs (Data Version Flag)
 function bumpDataVersion() {
     console.log("System Data Version Flag Bumped: Bypass unnecessary reads enabled.");
@@ -113,15 +116,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const files = Array.from(e.target.files);
             files.forEach(file => {
                 if (file.type.startsWith('image/')) {
-                    const url = URL.createObjectURL(file);
-                    uploadedImages.push(url);
-                    
-                    const img = document.createElement('img');
-                    img.src = url;
-                    imagePreview.appendChild(img);
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_WIDTH = 800;
+                            const MAX_HEIGHT = 800;
+                            let width = img.width;
+                            let height = img.height;
+
+                            if (width > height) {
+                                if (width > MAX_WIDTH) {
+                                    height *= MAX_WIDTH / width;
+                                    width = MAX_WIDTH;
+                                }
+                            } else {
+                                if (height > MAX_HEIGHT) {
+                                    width *= MAX_HEIGHT / height;
+                                    height = MAX_HEIGHT;
+                                }
+                            }
+
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                            uploadedImages.push(compressedBase64);
+
+                            const previewImg = document.createElement('img');
+                            previewImg.src = compressedBase64;
+                            imagePreview.appendChild(previewImg);
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
                 }
             });
-            // Reset input so same files can be re-selected if needed
             imageInput.value = '';
         });
     }
@@ -132,20 +165,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const searchInput = document.getElementById('search-transactions');
     if (searchInput) {
-        searchInput.addEventListener('input', renderTransactions);
+        searchInput.addEventListener('input', renderTransactionsUI);
     }
-    
+
+    window.saveToFirebase = async function() {
+        try {
+            const data = {
+                transactions: transactionsData,
+                treasuryBalance: treasuryBalance,
+                treasuryHistory: treasuryHistory,
+                partnershipHistory: partnershipHistory,
+                globalPassword: localStorage.getItem('global_password') || '1001'
+            };
+            await setDoc(doc(db, "app_data", "main"), data);
+        } catch (error) {
+            console.error("Error saving to Firebase:", error);
+            if (error.code === 'permission-denied') {
+                showCustomAlert('خطأ في صلاحيات قاعدة البيانات، يرجى تعديل الـ Rules', '❌');
+            }
+        }
+    };
+
+    window.loadFromFirebase = async function() {
+        try {
+            const docSnap = await getDoc(doc(db, "app_data", "main"));
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.transactions) transactionsData = data.transactions;
+                if (data.treasuryBalance !== undefined) treasuryBalance = data.treasuryBalance;
+                if (data.treasuryHistory) treasuryHistory = data.treasuryHistory;
+                if (data.partnershipHistory) partnershipHistory = data.partnershipHistory;
+                if (data.globalPassword) localStorage.setItem('global_password', data.globalPassword);
+            }
+        } catch (error) {
+            console.error("Error loading from Firebase:", error);
+            if (error.code === 'permission-denied') {
+                showCustomAlert('خطأ في صلاحيات قاعدة البيانات، يرجى تعديل الـ Rules', '❌');
+            }
+        }
+        renderTransactionsUI();
+        updateTreasuryUIDisplay();
+        updatePartnershipUIDisplay();
+    };
+
     const indexBtns = document.querySelectorAll('.index-btn');
     indexBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             indexBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentFilter = btn.getAttribute('data-filter');
-            renderTransactions();
+            renderTransactionsUI();
         });
     });
 
     function renderTransactions() {
+        window.saveToFirebase();
+        renderTransactionsUI();
+    }
+
+    function renderTransactionsUI() {
         const allTransactionsList = document.getElementById('all-transactions-list');
         
         if (!allTransactionsList) return;
@@ -153,17 +231,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
         const filteredTransactions = transactionsData.filter(t => {
-            const matchesSearch = t.sellerName.toLowerCase().includes(searchTerm) || 
-                                  (t.propNumber && t.propNumber.includes(searchTerm));
+            const matchesSearch = (t.sellerName && t.sellerName.toLowerCase().includes(searchTerm)) || 
+                                  (t.buyerName && t.buyerName.toLowerCase().includes(searchTerm)) || 
+                                  (t.propNumber && String(t.propNumber).includes(searchTerm));
             const matchesFilter = t.status === currentFilter;
             return matchesSearch && matchesFilter;
         });
 
-        const createCardHTML = (t) => `
-            <div class="transaction-card" data-id="${t.id}">
+        const createCardHTML = (t) => {
+            const isOffice = t.sellerName === 'المكتب' || t.buyerName === 'المكتب';
+            const officeStyle = isOffice ? 'border: 2px solid var(--primary-color); background: rgba(41, 128, 185, 0.05);' : '';
+            return `
+            <div class="transaction-card" data-id="${t.id}" style="${officeStyle}">
                 <div class="transaction-card-info">
                     <h4>عقار رقم: ${t.propNumber}</h4>
                     <p><strong>البائع:</strong> ${t.sellerName} ${t.sellerPhone ? `<span dir="ltr" style="font-size: 0.9em; margin-right: 5px;">(<a href="tel:${t.sellerPhone}" style="text-decoration: none; color: var(--secondary-color);" onclick="event.stopPropagation();">📞 ${t.sellerPhone}</a>)</span>` : ''}</p>
+                    <p><strong>المشتري:</strong> ${t.buyerName} ${t.buyerPhone ? `<span dir="ltr" style="font-size: 0.9em; margin-right: 5px;">(<a href="tel:${t.buyerPhone}" style="text-decoration: none; color: var(--secondary-color);" onclick="event.stopPropagation();">📞 ${t.buyerPhone}</a>)</span>` : ''}</p>
                 </div>
                 <div class="transaction-actions" style="display: flex; gap: 10px; margin-left: 15px; margin-right: 15px;">
                     <button type="button" class="action-btn edit-btn" data-id="${t.id}" title="تعديل">✏️</button>
@@ -171,11 +254,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="transaction-card-arrow">&#10094;</div>
             </div>
-        `;
+            `;
+        };
 
         allTransactionsList.innerHTML = filteredTransactions.length > 0 
             ? filteredTransactions.map(createCardHTML).join('')
-            : '<div class="empty-state">لا توجد معاملات من هذا النوع.</div>';
+            : '<div class="empty-state">لا توجد مصروفات من هذا النوع.</div>';
     }
 
     // Details Modal Logic
@@ -311,6 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (t) {
                         t.commissions[pendingCommToggle.type + 'Paid'] = !t.commissions[pendingCommToggle.type + 'Paid'];
                         showDetailsModal(t);
+                        window.saveToFirebase();
                     }
                 }
                 commModal.style.display = 'none';
@@ -356,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
             imagesHTML = `
                 <p style="margin-top: 15px;"><strong>الصور والمستمسكات:</strong></p>
                 <div class="details-images">
-                    ${t.images.map(imgSrc => `<img src="${imgSrc}" class="fullscreen-trigger" alt="صورة العقار" style="cursor: pointer; transition: transform 0.2s;">`).join('')}
+                    ${t.images.map((imgSrc, index) => `<img src="${imgSrc}" class="fullscreen-trigger" data-id="${t.id}" data-index="${index}" alt="صورة العقار" style="cursor: pointer; transition: transform 0.2s;">`).join('')}
                 </div>
             `;
         }
@@ -371,19 +456,30 @@ document.addEventListener('DOMContentLoaded', () => {
         t.amountRemaining = currentPropRemaining;
         
         let expensesSum = t.expensesLog.reduce((sum, e) => sum + Number(e.amount), 0);
-        let finalSellerRemaining = currentPropRemaining - expensesSum; 
-        
         let unpaidSellerComm = t.commissions.sellerPaid ? 0 : Number(t.commissions.seller);
         let unpaidBuyerComm = t.commissions.buyerPaid ? 0 : Number(t.commissions.buyer);
+
+        let finalSellerRemaining = currentPropRemaining - (unpaidSellerComm + expensesSum); 
         let finalOfficeClaim = unpaidSellerComm + unpaidBuyerComm + expensesSum;
 
+        const waText = encodeURIComponent(
+            `عقار رقم: ${t.propNumber}\n` +
+            (t.propArea ? `مساحة العقار: ${t.propArea}\n` : '') +
+            `سعر العقار: ${Number(t.propAmount).toLocaleString('en-US')} دينار\n` +
+            `المبلغ الواصل: ${totalPaidByBuyer.toLocaleString('en-US')} دينار\n` +
+            `المتبقي من السعر: ${currentPropRemaining.toLocaleString('en-US')} دينار\n` +
+            `عمولة المكتب المستحقة: ${finalOfficeClaim.toLocaleString('en-US')} دينار`
+        );
+
         detailsContent.innerHTML = `
-            <p><strong>حالة المعاملة:</strong> ${t.status}</p>
-            <p><strong>رقم العقار:</strong> ${t.propNumber}</p>
-            ${t.propArea ? `<p><strong>مساحة العقار:</strong> ${t.propArea}</p>` : ''}
-            <p><strong>التاريخ:</strong> ${t.propDate}</p>
-            <p><strong>البائع:</strong> ${t.sellerName} <span dir="ltr">(${t.sellerPhone ? `<a href="tel:${t.sellerPhone}" style="text-decoration: none; color: var(--secondary-color);">📞 ${t.sellerPhone}</a>` : 'لا يوجد'})</span></p>
-            <p><strong>المشتري:</strong> ${t.buyerName} <span dir="ltr">(${t.buyerPhone ? `<a href="tel:${t.buyerPhone}" style="text-decoration: none; color: var(--secondary-color);">📞 ${t.buyerPhone}</a>` : 'لا يوجد'})</span></p>
+            <div>
+                <p><strong>حالة المعاملة:</strong> ${t.status}</p>
+                <p><strong>رقم العقار:</strong> ${t.propNumber}</p>
+                ${t.propArea ? `<p><strong>مساحة العقار:</strong> ${t.propArea}</p>` : ''}
+                <p><strong>التاريخ:</strong> ${t.propDate}</p>
+                <p><strong>البائع:</strong> ${t.sellerName} <span dir="ltr">(${t.sellerPhone ? `<a href="tel:${t.sellerPhone}" style="text-decoration: none; color: var(--secondary-color);">📞 ${t.sellerPhone}</a>` : 'لا يوجد'})</span></p>
+                <p><strong>المشتري:</strong> ${t.buyerName} <span dir="ltr">(${t.buyerPhone ? `<a href="tel:${t.buyerPhone}" style="text-decoration: none; color: var(--secondary-color);">📞 ${t.buyerPhone}</a>` : 'لا يوجد'})</span></p>
+            </div>
             
             <div style="background: rgba(41, 128, 185, 0.1); padding: 15px; border-radius: 8px; border: 1px solid rgba(41, 128, 185, 0.2); margin-top: 15px; text-align: right;">
                 <p><strong>سعر العقار الكلي:</strong> ${Number(t.propAmount).toLocaleString('en-US')} دينار</p>
@@ -478,7 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (t.status === 'غير مكتملة') {
             const btn = document.createElement('button');
             btn.className = 'btn-3d btn-green';
-            btn.textContent = 'نقل إلى المعاملات الجارية';
+            btn.textContent = 'نقل إلى المصروفات الجارية';
             btn.onclick = () => {
                 t.status = 'جارية';
                 renderTransactions();
@@ -499,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const btn = document.createElement('button');
             btn.className = 'btn-3d btn-green';
-            btn.textContent = 'نقل إلى المعاملات المكتملة';
+            btn.textContent = 'نقل إلى المصروفات المكتملة';
             btn.onclick = () => {
                 t.status = 'مكتملة';
                 renderTransactions();
@@ -518,6 +614,14 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             actionsContainer.prepend(btnBack);
         }
+        
+        const waBtn = document.createElement('a');
+        waBtn.href = `https://wa.me/?text=${waText}`;
+        waBtn.target = "_blank";
+        waBtn.className = "btn-3d";
+        waBtn.style = "background: #25D366; color: white; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: bold;";
+        waBtn.innerHTML = `<span>إرسال واتساب</span><span style="font-size: 1.2rem;">📱</span>`;
+        actionsContainer.prepend(waBtn);
 
         document.querySelectorAll('.fullscreen-trigger').forEach(img => {
             img.addEventListener('click', (e) => {
@@ -525,6 +629,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fsImage = document.getElementById('fullscreen-image');
                 if (fsModal && fsImage) {
                     fsImage.src = e.target.src;
+                    fsImage.dataset.id = e.target.dataset.id;
+                    fsImage.dataset.index = e.target.dataset.index;
                     fsModal.classList.add('active');
                 }
             });
@@ -539,8 +645,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const fsModal = document.getElementById('fullscreen-image-modal');
     const fsClose = document.getElementById('close-fullscreen-btn');
+    const fsImage = document.getElementById('fullscreen-image');
+    const deleteImageBtn = document.getElementById('delete-image-btn');
+    const replaceImageBtn = document.getElementById('replace-image-btn');
+    const replaceImageInput = document.getElementById('replace-image-input');
+
     if (fsClose && fsModal) {
         fsClose.addEventListener('click', () => fsModal.classList.remove('active'));
+    }
+
+    if (deleteImageBtn) {
+        deleteImageBtn.addEventListener('click', () => {
+            if (confirm('هل أنت متأكد من حذف هذه الصورة؟')) {
+                const id = parseInt(fsImage.dataset.id);
+                const index = parseInt(fsImage.dataset.index);
+                const t = transactionsData.find(x => x.id === id);
+                if (t && t.images) {
+                    t.images.splice(index, 1);
+                    window.saveToFirebase();
+                    fsModal.classList.remove('active');
+                    showDetailsModal(t);
+                    showCustomAlert('تم حذف الصورة بنجاح', '✅');
+                }
+            }
+        });
+    }
+
+    if (replaceImageBtn && replaceImageInput) {
+        replaceImageBtn.addEventListener('click', () => {
+            replaceImageInput.click();
+        });
+
+        replaceImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 800;
+                        const MAX_HEIGHT = 800;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                        
+                        const id = parseInt(fsImage.dataset.id);
+                        const index = parseInt(fsImage.dataset.index);
+                        const t = transactionsData.find(x => x.id === id);
+                        if (t && t.images) {
+                            t.images[index] = compressedBase64;
+                            window.saveToFirebase();
+                            fsImage.src = compressedBase64;
+                            showDetailsModal(t);
+                            showCustomAlert('تم تعديل الصورة بنجاح', '✅');
+                        }
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            replaceImageInput.value = '';
+        });
     }
 
     if (form) {
@@ -619,6 +803,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const treasuryHistoryList = document.getElementById('treasury-history-list');
 
     function updateTreasuryUI() {
+        window.saveToFirebase();
+        updateTreasuryUIDisplay();
+    }
+
+    function updateTreasuryUIDisplay() {
         // Calculate balance
         let total = 0;
         treasuryHistory.forEach(t => {
@@ -885,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // Initial render
-        updateTreasuryUI();
+        updateTreasuryUIDisplay();
     }
 
     // Edit Balance Modal Logic
@@ -977,9 +1166,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const partnershipHistoryList = document.getElementById('partnership-history-list');
 
     function updatePartnershipUI() {
+        window.saveToFirebase();
+        updatePartnershipUIDisplay();
+    }
+
+    function updatePartnershipUIDisplay() {
         let totalProfits = 0; // Code 1
         let totalSharedPayments = 0; // Code 0
         let totalPartnerPayments = 0; // Code 10
+        let totalAliPayments = 0; // Code 20
 
         partnershipHistory.forEach(t => {
             const amt = Number(t.amount);
@@ -989,10 +1184,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalSharedPayments += amt;
             } else if (t.code === '10') {
                 totalPartnerPayments += amt;
+            } else if (t.code === '20') {
+                totalAliPayments += amt;
             }
         });
 
-        const aliNet = (totalProfits / 2) - (totalSharedPayments / 2);
+        const aliNet = (totalProfits / 2) - (totalSharedPayments / 2) - totalAliPayments;
         const partnerNet = (totalProfits / 2) - (totalSharedPayments / 2) - totalPartnerPayments;
 
         const formatter = new Intl.NumberFormat('en-US');
@@ -1029,15 +1226,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         codeLabel = 'دفع مشترك (0)'; typeColor = '#f39c12';
                     } else if (t.code === '10') {
                         codeLabel = 'دفع للشريك (10)'; typeColor = '#c0392b';
+                    } else if (t.code === '20') {
+                        codeLabel = 'سحب لعلي (20)'; typeColor = '#8e44ad';
                     }
 
                     return `
-                        <div class="transaction-card" style="border-right: 4px solid ${typeColor}; padding-right: 15px;">
+                        <div class="transaction-card" style="border-right: 4px solid ${typeColor}; background: ${typeColor}15; padding-right: 15px;">
                             <div class="transaction-card-info">
                                 <h4 style="color: ${typeColor}; margin-bottom: 0.5rem;">${codeLabel}</h4>
                                 <p><strong>المبلغ:</strong> <span dir="ltr">${formatter.format(t.amount)}</span> دينار</p>
                                 <p><strong>التاريخ:</strong> ${t.date}</p>
                                 <p><strong>السبب:</strong> ${t.reason}</p>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 10px; justify-content: center;">
+                                <button type="button" class="action-btn edit-btn" onclick="window.editPartnership(${t.id})" title="تعديل">✏️</button>
+                                <button type="button" class="action-btn delete-btn" onclick="window.deletePartnership(${t.id})" title="حذف">🗑️</button>
                             </div>
                         </div>
                     `;
@@ -1068,7 +1271,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (verifyResetPasswordBtn) {
         verifyResetPasswordBtn.addEventListener('click', () => {
             if (resetBalancePassword.value === window.getGlobalPassword()) {
-                partnershipHistory = [];
+                let totalProfits = 0; let totalSharedPayments = 0; let totalAliPayments = 0;
+                partnershipHistory.forEach(t => {
+                    const amt = Number(t.amount);
+                    if (t.code === '1') totalProfits += amt;
+                    else if (t.code === '0') totalSharedPayments += amt;
+                    else if (t.code === '20') totalAliPayments += amt;
+                });
+                const aliNet = (totalProfits / 2) - (totalSharedPayments / 2) - totalAliPayments;
+
+                if (aliNet !== 0) {
+                    partnershipHistory.push({
+                        id: Date.now(),
+                        amount: aliNet,
+                        code: '20',
+                        date: new Date().toISOString().split('T')[0],
+                        reason: 'تصفير حساب'
+                    });
+                    window.saveToFirebase();
+                }
                 updatePartnershipUI();
                 resetAliBalanceModal.style.display = 'none';
                 showCustomAlert('تم تصفير الحساب بنجاح!', '✅');
@@ -1115,12 +1336,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (partnerNet !== 0) {
                     partnershipHistory.push({
                         id: Date.now(),
-                        code: partnerNet > 0 ? '10' : '0', // If we owe partner, pay partner. If partner owes us, record as shared payment or something? Let's just reset the whole array if that's what's expected.
-                        // Actually, I'll just clear the array like Ali's reset for consistency, or just reset partner. I'll just clear it.
+                        amount: partnerNet,
+                        code: '10',
+                        date: new Date().toISOString().split('T')[0],
+                        reason: 'تصفير حساب الشريك'
                     });
+                    window.saveToFirebase();
                 }
-                
-                partnershipHistory = [];
                 updatePartnershipUI();
                 resetPartnerBalanceModal.style.display = 'none';
                 showCustomAlert('تم تصفير الحساب بنجاح!', '✅');
@@ -1130,8 +1352,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    window.deletePartnership = function(id) {
+        if (confirm("هل أنت متأكد من حذف عملية الشراكة؟")) {
+            const index = partnershipHistory.findIndex(x => x.id === id);
+            if (index > -1) {
+                partnershipHistory.splice(index, 1);
+                updatePartnershipUI();
+                showCustomAlert('تم حذف العملية بنجاح!', '✅');
+            }
+        }
+    };
+
+    window.editPartnership = function(id) {
+        const t = partnershipHistory.find(x => x.id === id);
+        if (!t) return;
+        window.editingPartnershipId = id;
+        document.getElementById('partner-amount').value = t.amount;
+        document.getElementById('partner-code').value = t.code;
+        document.getElementById('partner-date').value = t.date;
+        document.getElementById('partner-reason').value = t.reason;
+        partnershipModal.classList.add('active');
+    };
+
     if (btnAddPartnership && partnershipModal && cancelPartnershipBtn && partnershipForm) {
         btnAddPartnership.addEventListener('click', () => {
+            window.editingPartnershipId = null;
             partnershipForm.reset();
             document.getElementById('partner-date').valueAsDate = new Date();
             partnershipModal.classList.add('active');
@@ -1148,20 +1393,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const date = document.getElementById('partner-date').value;
             const reason = document.getElementById('partner-reason').value;
 
-            partnershipHistory.push({
-                id: Date.now(),
-                amount,
-                code,
-                date,
-                reason
-            });
+            if (window.editingPartnershipId) {
+                const t = partnershipHistory.find(x => x.id === window.editingPartnershipId);
+                if (t) {
+                    t.amount = amount;
+                    t.code = code;
+                    t.date = date;
+                    t.reason = reason;
+                }
+                window.editingPartnershipId = null;
+                showCustomAlert('تم تعديل عملية الشراكة بنجاح!', '✅');
+            } else {
+                partnershipHistory.push({
+                    id: Date.now(),
+                    amount,
+                    code,
+                    date,
+                    reason
+                });
+                showCustomAlert('تمت إضافة عملية الشراكة بنجاح!', '✅');
+            }
 
             updatePartnershipUI();
             partnershipModal.classList.remove('active');
-            showCustomAlert('تمت إضافة عملية الشراكة بنجاح!', '✅');
         });
 
-        updatePartnershipUI();
+        updatePartnershipUIDisplay();
     }
 
     // Settings logic
@@ -1229,9 +1486,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.setItem('treasury_history', JSON.stringify(treasuryHistory));
                     localStorage.setItem('partnership_history', JSON.stringify(partnershipHistory));
 
-                    renderTransactions();
-                    updateTreasuryUI();
-                    updatePartnershipUI();
+                    window.saveToFirebase();
+                    renderTransactionsUI();
+                    updateTreasuryUIDisplay();
+                    updatePartnershipUIDisplay();
                     showCustomAlert('تم استعادة النسخة الاحتياطية بنجاح!', '✅');
                 } catch (err) {
                     showCustomAlert('ملف النسخة الاحتياطية غير صالح', '❌');
@@ -1268,6 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (oldPasswordInput.value === currentPass) {
                 if (newPasswordInput.value.trim().length > 0) {
                     localStorage.setItem('global_password', newPasswordInput.value.trim());
+                    window.saveToFirebase();
                     changePasswordModal.style.display = 'none';
                     showCustomAlert('تم تغيير كلمة المرور بنجاح!', '✅');
                 } else {
@@ -1279,4 +1538,52 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Load initial data from Firebase
+    window.loadFromFirebase();
+
+    // PWA Install Logic
+    let deferredPrompt;
+    const installBtn = document.getElementById('install-app-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        // Stash the event so it can be triggered later.
+        deferredPrompt = e;
+        // Update UI notify the user they can install the PWA
+        installBtn.style.display = 'block';
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            // Show the install prompt
+            deferredPrompt.prompt();
+            // Wait for the user to respond to the prompt
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            // We've used the prompt, and can't use it again, throw it away
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+        }
+    });
+
+    window.addEventListener('appinstalled', () => {
+        // Hide the app-provided install promotion
+        installBtn.style.display = 'none';
+        // Clear the deferredPrompt so it can be garbage collected
+        deferredPrompt = null;
+        console.log('PWA was installed');
+    });
+
 });
+
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((registration) => {
+      console.log('ServiceWorker registration successful with scope: ', registration.scope);
+    }, (err) => {
+      console.log('ServiceWorker registration failed: ', err);
+    });
+  });
+}
