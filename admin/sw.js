@@ -1,6 +1,6 @@
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open('real-estate-store-v2').then((cache) => cache.addAll([
+    caches.open('real-estate-store-v3').then((cache) => cache.addAll([
       './',
       './index.html',
       './style.css',
@@ -14,7 +14,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== 'real-estate-store-v2') {
+        if (key !== 'real-estate-store-v3') {
           return caches.delete(key);
         }
       }));

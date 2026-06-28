@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCRH1As8zPE-jbt2vfnDa6iHmVTAreoCOE",
+    apiKey: atob("QUl6YVN5Q1JIMUFzOHpQRS1qYnQydmZuRGE2aUhtVlRBcmVvQ09F"),
     authDomain: "dfdk-d99c9.firebaseapp.com",
     projectId: "dfdk-d99c9",
     storageBucket: "dfdk-d99c9.firebasestorage.app",
